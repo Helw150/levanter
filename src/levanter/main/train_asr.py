@@ -44,8 +44,6 @@ class TrainASRConfig:
     hf_upload: Optional[str] = None
     hf_save_steps: int = 10000
 
-    update_hessian_steps: int = 10
-
 
 def main(config: TrainASRConfig):
     tokenizer = config.data.the_tokenizer
