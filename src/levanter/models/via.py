@@ -187,6 +187,7 @@ class ViaModel(eqx.Module, ModelWithHfSerializationMixin[ViaConfig]):
         virt_whisper_tokens = self.connector.transformer(
             (self.query_tokens + self.query_position_embeds).broadcast_axis(OtherAxes),
             audio_features,
+            causal_mask,
             key=k_connector,
         )
         virtual_tokens = self.projection(virt_whisper_tokens)
