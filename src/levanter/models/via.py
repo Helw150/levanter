@@ -151,11 +151,11 @@ class ViaModel(eqx.Module, ModelWithHfSerializationMixin[ViaConfig]):
         key,
         dec_cls: Type["LmHeadModel"] = LlamaLMHeadModel,
     ) -> "ViaModel":
-        k_query, k_projection, k_enc, k_connector, k_dec = maybe_rng_split(key, 5)
+        k_query, k_projection, k_enc, k_proj, k_connector, k_dec = maybe_rng_split(key, 6)
         encoder = WhisperEncoder.init(config.enc_config, key=k_enc)
         connector = WhisperDecoder.init(config.enc_config, key=k_connector)
         query_tokens = hax.random.normal(k_query, (config.TimeGroup, config.enc_config.Embed)) * 0.02
-        projection = hnn.Linear.init(In=config.enc_config.Embed, Out=config.dec_config.Embed, key=key)
+        projection = hnn.Linear.init(In=connector.Vocab, Out=config.dec_config.Embed, key=k_proj)
         decoder = dec_cls.init(Vocab, config.dec_config, key=k_dec)
 
         return cls(query_tokens, projection, encoder, connector, decoder, config)
@@ -190,9 +190,9 @@ class ViaModel(eqx.Module, ModelWithHfSerializationMixin[ViaConfig]):
             causal_mask,
             key=k_connector,
         )
-        lm_logits = self.connector.embeddings.unembed(virt_whisper_tokens)
-        # virtual_tokens = self.projection(soft_whisper_logits)
-        # lm_logits = self.decoder.embeddings.unembed(virtual_tokens)
+        soft_whisper_logits = self.connector.embeddings.unembed(virt_whisper_tokens)
+        virtual_tokens = self.projection(soft_whisper_logits)
+        lm_logits = self.decoder.embeddings.unembed(virtual_tokens)
         return lm_logits["position", : input_ids.resolve_axis("position").size]
         # # Embed Real LLM Tokens
         # prefix = self.decoder.embeddings.embed(self.config.prefix)
