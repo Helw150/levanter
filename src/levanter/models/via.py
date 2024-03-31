@@ -114,7 +114,7 @@ class ViaConfig(HFCompatConfig, ASRConfig):
 def connector_only(model):
     frozen_tree = jax.tree_util.tree_map(lambda _: False, model)
     return eqx.tree_at(
-        lambda tree: (tree.query_tokens, tree.projection.weight, tree.projection.bias, tree.connector),
+        lambda tree: (tree.query_tokens, tree.projection.weight, tree.projection.bias, tree.connector.transformer),
         frozen_tree,
         (True, True, True, True),
     )
@@ -191,9 +191,7 @@ class ViaModel(eqx.Module, ModelWithHfSerializationMixin[ViaConfig]):
             audio_features,  # causal_mask,
             key=k_connector,
         )
-        soft_whisper_logits = hax.nn.softmax(
-            self.connector.embeddings.unembed(virt_whisper_tokens), axis=self.connector.Vocab
-        )
+        soft_whisper_logits = self.connector.embeddings.unembed(virt_whisper_tokens)
 
         virtual_tokens = self.projection(soft_whisper_logits)
         lm_logits = self.decoder.embeddings.unembed(virtual_tokens)
