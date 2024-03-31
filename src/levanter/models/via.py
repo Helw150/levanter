@@ -190,12 +190,11 @@ class ViaModel(eqx.Module, ModelWithHfSerializationMixin[ViaConfig]):
             causal_mask,
             key=k_connector,
         )
-        soft_whisper_logits = hax.nn.softmax(
-            self.connector.embeddings.unembed(virt_whisper_tokens), axis=self.connector.Vocab
-        )
+        soft_whisper_logits = self.connector.embeddings.unembed(virt_whisper_tokens)
 
-        virtual_tokens = self.projection(soft_whisper_logits)
-        lm_logits = self.decoder.embeddings.unembed(virtual_tokens)
+        lm_logits = soft_whisper_logits
+        # virtual_tokens = self.projection(soft_whisper_logits)
+        # lm_logits = self.decoder.embeddings.unembed(virtual_tokens)
         return lm_logits["position", : input_ids.resolve_axis("position").size]
         # # Embed Real LLM Tokens
         # prefix = self.decoder.embeddings.embed(self.config.prefix)

@@ -1,11 +1,12 @@
 data:
   id: mozilla-foundation/common_voice_16_1
-  cache_dir: "gs://audio-via/processed/cv-448"
+  cache_dir: "gs://audio-via/processed/cv-448-whisper"
   name: "en"
   text_key: "sentence"
   train_split: "train"
   validation_split: "validation"
-  tokenizer: "WillHeld/via-llama"
+  #tokenizer: "WillHeld/via-llama"
+  tokenizer: "openai/whisper-large-v3"
   processor: "openai/whisper-large-v3"
 model:
   type: whisper
@@ -25,7 +26,7 @@ trainer:
   train_batch_size: 512
   num_train_steps: 5000
 optimizer:
-  learning_rate: 3E-3
+  learning_rate: 1E-3
   weight_decay: 0.0
   warmup: 0.01
 via_init: True
