@@ -1,12 +1,12 @@
 data:
   id: mozilla-foundation/common_voice_16_1
-  cache_dir: "gs://audio-via/processed/cv-448-whisper"
+  cache_dir: "gs://audio-via/processed/cv-448"
   name: "en"
   text_key: "sentence"
   train_split: "train"
   validation_split: "validation"
-  #tokenizer: "WillHeld/via-llama"
-  tokenizer: "openai/whisper-large-v3"
+  tokenizer: "WillHeld/via-llama"
+  #tokenizer: "openai/whisper-large-v3"
   processor: "openai/whisper-large-v3"
 model:
   type: whisper

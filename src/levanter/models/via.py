@@ -198,7 +198,7 @@ class ViaModel(eqx.Module, ModelWithHfSerializationMixin[ViaConfig]):
             hax.pad_left(
                 virt_whisper_tokens,
                 axis=virt_whisper_tokens.resolve_axis("embed_dim"),
-                new_axis=hax.Axis(name="vocab", size=51865),
+                new_axis=hax.Axis(name="vocab", size=51866),
             )
         )
         lm_logits = self.decoder.embeddings.unembed(virtual_tokens)
