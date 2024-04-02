@@ -347,7 +347,13 @@ class BatchTokenizer(BatchProcessor[str]):
         else:
             self.max_length = self.tokenizer.model_max_length
 
-        # see if the tokenizer appends eos
+        # see if the tokenizer appends bos/eos
+        # if we don't have an eos/bos token in the tokenizer, skip
+        if tokenizer.bos_token_id is None:
+            enforce_bos = False
+        if tokenizer.eos_token_id is None:
+            enforce_eos = False
+
         # HF's BPE-based tokenizers do not, but the bert and roberta ones do
         # TODO: this doesn't necessarily ensure it, I guess, but eh
         if enforce_eos or enforce_bos:
@@ -356,6 +362,7 @@ class BatchTokenizer(BatchProcessor[str]):
             should_append_bos = input_ids[0] == tokenizer.bos_token_id and enforce_bos
         else:
             should_append_eos = False
+            should_append_bos = False
 
         self._batch_size = batch_size
 
