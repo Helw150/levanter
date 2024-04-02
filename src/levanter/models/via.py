@@ -192,11 +192,20 @@ class ViaModel(eqx.Module, ModelWithHfSerializationMixin[ViaConfig]):
             causal_mask,
             key=k_connector,
         )
+        flat_encoder_outputs = hax.flatten_axes(virt_whisper_tokens, ("position", "embed_dim"), "flat_embed")
+        grouped_encoder_outputs = hax.unflatten_axis(
+            flat_encoder_outputs,
+            "flat_embed",
+            (
+                hax.Axis(name="position", size=virt_whisper_tokens.resolve_axis("position").size // 4),
+                hax.Axis(name="embed_dim", size=self.config.enc_config.Embed.size * 4),
+            ),
+        )
         # soft_whisper_logits = self.connector.embeddings.unembed(virt_whisper_tokens)
         # lm_logits = soft_whisper_logits
         virtual_tokens = self.projection(
             hax.pad_left(
-                virt_whisper_tokens,
+                grouped_encoder_outputs,
                 axis=virt_whisper_tokens.resolve_axis("embed_dim"),
                 new_axis=hax.Axis(name="vocab", size=51866),
             )
