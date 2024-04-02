@@ -206,7 +206,7 @@ class ViaModel(eqx.Module, ModelWithHfSerializationMixin[ViaConfig]):
         virtual_tokens = self.projection(
             hax.pad_left(
                 grouped_encoder_outputs,
-                axis=virt_whisper_tokens.resolve_axis("embed_dim"),
+                axis=grouped_encoder_outputs.resolve_axis("embed_dim"),
                 new_axis=hax.Axis(name="vocab", size=51866),
             )
         )
