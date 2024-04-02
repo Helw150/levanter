@@ -114,9 +114,9 @@ class ViaConfig(HFCompatConfig, ASRConfig):
 def connector_only(model):
     frozen_tree = jax.tree_util.tree_map(lambda _: False, model)
     return eqx.tree_at(
-        lambda tree: (tree.query_tokens, tree.projection.weight, tree.projection.bias),
+        lambda tree: (tree.query_tokens, tree.projection.weight, tree.projection.bias, tree.connector),
         frozen_tree,
-        (True, True, True),
+        (True, True, True, True),
     )
 
 
