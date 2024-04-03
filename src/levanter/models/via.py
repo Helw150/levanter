@@ -77,6 +77,7 @@ class ViaConfig(HFCompatConfig, ASRConfig):
     Pos = property(lambda self: Axis(name="position", size=self.enc_config.max_length))
     AudioPos = property(lambda self: [self.enc_config.Mels, self.enc_config.MelPos])
     KeyPos = property(lambda self: self.Pos.alias("key_position"))
+    GroupedEmbed = property(lambda self: self.enc_config.Embed.resize(self.enc_config.Embed.size * 4))
     TimeGroup = property(lambda self: Axis(name="position", size=self.enc_config.max_length))
 
     @property
@@ -108,7 +109,7 @@ class ViaConfig(HFCompatConfig, ASRConfig):
 
     @cached_classproperty
     def default_hf_checkpoint_converter(cls) -> HFCheckpointConverter["ViaModel"]:  # type: ignore
-        return HFCheckpointConverter(cls, "WillHeld/via-llama")
+        return HFCheckpointConverter(cls, "WillHeld/via-base")
 
 
 def connector_only(model):
@@ -157,7 +158,7 @@ class ViaModel(eqx.Module, ModelWithHfSerializationMixin[ViaConfig]):
         encoder = WhisperEncoder.init(config.enc_config, key=k_enc)
         connector = WhisperDecoder.init(config.enc_config, key=k_connector)
         query_tokens = hax.random.normal(k_query, (config.TimeGroup, config.enc_config.Embed)) * 0.02
-        projection = hnn.Linear.init(In=connector.Vocab, Out=config.dec_config.Embed, key=k_proj)
+        projection = hnn.Linear.init(In=config.GroupedEmbed, Out=config.dec_config.Embed, key=k_proj)
         decoder = dec_cls.init(Vocab, config.dec_config, key=k_dec)
 
         return cls(query_tokens, projection, encoder, connector, decoder, config)
@@ -192,24 +193,25 @@ class ViaModel(eqx.Module, ModelWithHfSerializationMixin[ViaConfig]):
             causal_mask,
             key=k_connector,
         )
+        # grouped_encoder_outputs = virt_whisper_tokens
         flat_encoder_outputs = hax.flatten_axes(virt_whisper_tokens, ("position", "embed_dim"), "flat_embed")
         grouped_encoder_outputs = hax.unflatten_axis(
             flat_encoder_outputs,
             "flat_embed",
             (
                 hax.Axis(name="position", size=virt_whisper_tokens.resolve_axis("position").size // 4),
-                hax.Axis(name="embed_dim", size=self.config.enc_config.Embed.size * 4),
+                self.config.GroupedEmbed,
             ),
         )
-        # soft_whisper_logits = self.connector.embeddings.unembed(virt_whisper_tokens)
+        virtual_tokens = self.projection(grouped_encoder_outputs)
         # lm_logits = soft_whisper_logits
-        virtual_tokens = self.projection(
-            hax.pad_left(
-                grouped_encoder_outputs,
-                axis=grouped_encoder_outputs.resolve_axis("embed_dim"),
-                new_axis=hax.Axis(name="vocab", size=51866),
-            )
-        )
+        # virtual_tokens = self.projection(
+        #     hax.pad_left(
+        #         grouped_encoder_outputs,
+        #         axis=grouped_encoder_outputs.resolve_axis("embed_dim"),
+        #         new_axis=hax.Axis(name="vocab", size=51866),
+        #     )
+        # )
         lm_logits = self.decoder.embeddings.unembed(virtual_tokens)
         return lm_logits["position", : input_ids.resolve_axis("position").size]
         # # Embed Real LLM Tokens
