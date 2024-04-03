@@ -77,7 +77,7 @@ class ViaConfig(HFCompatConfig, ASRConfig):
     Pos = property(lambda self: Axis(name="position", size=self.enc_config.max_length))
     AudioPos = property(lambda self: [self.enc_config.Mels, self.enc_config.MelPos])
     KeyPos = property(lambda self: self.Pos.alias("key_position"))
-    GroupedEmbed = property(lambda self: self.enc_config.Embed.resize(self.enc_config.Embed.size * 4))
+    GroupedEmbed = property(lambda self: Axis(name="grouped_embed", size=self.enc_config.Embed.size * 4))
     TimeGroup = property(lambda self: Axis(name="position", size=self.enc_config.max_length))
 
     @property
@@ -193,17 +193,22 @@ class ViaModel(eqx.Module, ModelWithHfSerializationMixin[ViaConfig]):
             causal_mask,
             key=k_connector,
         )
-        # grouped_encoder_outputs = virt_whisper_tokens
-        flat_encoder_outputs = hax.flatten_axes(virt_whisper_tokens, ("position", "embed_dim"), "flat_embed")
-        grouped_encoder_outputs = hax.unflatten_axis(
-            flat_encoder_outputs,
-            "flat_embed",
-            (
-                hax.Axis(name="position", size=virt_whisper_tokens.resolve_axis("position").size // 4),
-                self.config.GroupedEmbed,
-            ),
+        grouped_encoder_outputs = virt_whisper_tokens
+        # flat_encoder_outputs = hax.flatten_axes(virt_whisper_tokens, ("position", "embed"), "flat_embed")
+        # grouped_encoder_outputs = hax.unflatten_axis(
+        #    flat_encoder_outputs,
+        #    "flat_embed",
+        #    (
+        #        hax.Axis(name="position", size=virt_whisper_tokens.resolve_axis("position").size // 4),
+        #        self.config.GroupedEmbed,
+        #    ),
+        # )
+        EmbedAxis = grouped_encoder_outputs.resolve_axis("embed")
+        virtual_tokens = self.projection(
+            hax.pad_left(
+                grouped_encoder_outputs, axis=EmbedAxis, new_axis=Axis(name="grouped_embed", size=EmbedAxis.size * 4)
+            )
         )
-        virtual_tokens = self.projection(grouped_encoder_outputs)
         # lm_logits = soft_whisper_logits
         # virtual_tokens = self.projection(
         #     hax.pad_left(
