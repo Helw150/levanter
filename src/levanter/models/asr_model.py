@@ -108,7 +108,7 @@ class ASRMixin(abc.ABC):
         virt_tokens = self(example.audio, example.tokens, example.attn_mask, key=key)
         real_tokens = self.decoder.embeddings.embed(example.tokens)
         diff = real_tokens - virt_tokens
-        loss = hax.dot(diff, diff)
+        loss = hax.dot(diff, diff, axis="embed").sum(axis="position").mean("batch")
         # logits = self(example.audio, example.tokens, example.attn_mask, key=key)
         # logits = logits.astype(jnp.float32)
         # targets = hax.roll(example.tokens, -1, axis=self.Pos.name)
