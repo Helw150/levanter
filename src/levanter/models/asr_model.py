@@ -105,13 +105,19 @@ class ASRMixin(abc.ABC):
         across the reduction axis (with reduction_axis=None meaning all axes). If reduction is None, the loss is not
         reduced, and the result is a named array with axes (*batch axes, sequence_length).
         """
-        logits = self(example.audio, example.tokens, example.attn_mask, key=key)
-        logits = logits.astype(jnp.float32)
-        targets = hax.roll(example.tokens, -1, axis=self.Pos.name)
-        target_y = hax.nn.one_hot(targets, self.Vocab, dtype=logits.dtype)
-        loss = cross_entropy_loss(
-            logits, self.Vocab, target_y, reduction, reduction_axis=reduction_axis, where=example.loss_mask
-        )
+        virt_tokens = self(example.audio, example.tokens, example.attn_mask, key=key)
+        real_tokens = self.decoder.embeddings.embed(example.tokens)
+        diff = real_tokens - virt_tokens
+        loss = hax.dot(diff, diff)
+        # logits = self(example.audio, example.tokens, example.attn_mask, key=key)
+        # logits = logits.astype(jnp.float32)
+        # targets = hax.roll(example.tokens, -1, axis=self.Pos.name)
+        # target_y = hax.nn.one_hot(targets, self.Vocab, dtype=logits.dtype)
+        # print(logits.argmax("vocab"))
+        # print(targets)
+        # loss = cross_entropy_loss(
+        #     logits, self.Vocab, target_y, reduction, reduction_axis=reduction_axis, where=example.loss_mask
+        # )
 
         return loss
 

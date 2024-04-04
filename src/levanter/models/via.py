@@ -217,8 +217,8 @@ class ViaModel(eqx.Module, ModelWithHfSerializationMixin[ViaConfig]):
         #         new_axis=hax.Axis(name="vocab", size=51866),
         #     )
         # )
-        lm_logits = self.decoder.embeddings.unembed(virtual_tokens)
-        return lm_logits["position", : input_ids.resolve_axis("position").size]
+        # lm_logits = self.decoder.embeddings.unembed(virtual_tokens)
+        return virtual_tokens["position", : input_ids.resolve_axis("position").size]
         # # Embed Real LLM Tokens
         # prefix = self.decoder.embeddings.embed(self.config.prefix)
         # suffix = self.decoder.embeddings.embed(self.config.suffix)
