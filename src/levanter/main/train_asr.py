@@ -206,7 +206,10 @@ def main(config: TrainASRConfig):
 
         trainer.add_hook(
             callbacks.compute_and_visualize_log_probs(
-                eval_loader, tokenizer, compute_log_probs, os.path.join(config.trainer.run_dir, "log_probs")
+                trainer.replicated_loader(hax_eval_dataset, EvalBatch),
+                tokenizer,
+                compute_log_probs,
+                os.path.join(config.trainer.run_dir, "log_probs"),
             ),
             every=config.trainer.steps_per_eval,
         )
