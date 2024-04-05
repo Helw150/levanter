@@ -201,8 +201,15 @@ def main(config: TrainASRConfig):
             model = trainer.mp.cast_to_compute(model)
             logprobs = model.compute_loss(example, key=None, reduction=None)
             # roll forward to get the loss for each predicted token
-            logprobs = hax.roll(logprobs, 1, Pos)
+            # logprobs = hax.roll(logprobs, 1, Pos)
             return logprobs.rearrange((EvalBatch, Pos)).array
+
+        trainer.add_hook(
+            callbacks.compute_and_visualize_log_probs(
+                eval_loader, tokenizer, compute_log_probs, os.path.join(config.trainer.run_dir, "log_probs")
+            ),
+            every=config.trainer.steps_per_eval,
+        )
 
         # data loader. may need to seek to the right place if we're resuming
         train_loader = iter(trainer.sharded_loader(train_dataset, Batch))
