@@ -209,7 +209,7 @@ def main(config: TrainASRConfig):
                 trainer.replicated_loader(hax_eval_dataset, EvalBatch),
                 tokenizer,
                 compute_log_probs,
-                os.path.join(trainer.log_dir, trainer.run_id, "log_probs"),
+                os.path.join(config.trainer.log_dir, trainer.run_id, "log_probs"),
             ),
             every=config.trainer.steps_per_eval,
         )
