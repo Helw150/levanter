@@ -109,7 +109,7 @@ def main(config: TrainASRConfig):
         # some axes we need
         Batch = config.trainer.TrainBatch
         EvalBatch = config.trainer.EvalBatch
-        Pos = config.model.Pos  # .resize(112)
+        Pos = config.model.Pos.resize(112)
         KeyPos = config.model.KeyPos
 
         eval_datasets = config.data.validation_sets(config.batch_size)
