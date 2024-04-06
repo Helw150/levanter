@@ -44,7 +44,7 @@ def visualize_log_probs(tokens: List[List[str]], log_probs: np.ndarray, output_p
             normed = cm.plasma(norm(lp))
             color = (255 * np.array(normed)).astype(int)
             html_code += (
-                f"<span style='background: rgba(255, 0, 0, lp);'  title='{raw_sim:.4f}'>{_escape(token)}</span>"
+                f"<span style='background: rgba(255, 0, 0, {lp});'  title='{raw_sim:.4f}'>{_escape(token)}</span>"
             )
         html_code += "<br>\n"
     html_code += "</div></html>"
