@@ -6,6 +6,7 @@ data:
   train_split: "train"
   validation_split: "validation"
   tokenizer: "WillHeld/via-llama"
+  enforce_bos: false
   #tokenizer: "openai/whisper-large-v3"
   processor: "openai/whisper-large-v3"
 model:
