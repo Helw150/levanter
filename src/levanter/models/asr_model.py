@@ -112,7 +112,7 @@ class ASRMixin(abc.ABC):
         loss = hax.dot(diff, diff, axis="embed") ** 0.5
         if reduction != None:
             loss = loss * example.loss_mask
-            loss = loss.mean(axis="position").mean("batch")
+            loss = hax.mean(loss, where=example.loss_mask, axis="position").mean("batch")
         # logits = self(example.audio, example.tokens, example.attn_mask, key=key)
         # logits = logits.astype(jnp.float32)
         # targets = hax.roll(example.tokens, -1, axis=self.Pos.name)
