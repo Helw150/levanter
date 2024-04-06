@@ -37,13 +37,14 @@ class AudioTextExample(eqx.Module):
         Pos = tokens.axes[0]
 
         # don't predict the last token.
-        if loss_mask is None:
-            loss_mask = 1 - hax.nn.one_hot(-1, Pos, dtype=jnp.float32)
+        # if loss_mask is None:
+        #    loss_mask = 1 - hax.nn.one_hot(-1, Pos, dtype=jnp.float32)
 
         if ignore_id is not None:
             # we don't compute loss for any tokens matching the ignore index
-            ignore_mask = hax.roll(tokens, -1, Pos) != ignore_id
-            loss_mask = loss_mask * ignore_mask
+            loss_mask = tokens != ignore_id
+        #            ignore_mask = hax.roll(tokens, -1, Pos) != ignore_id
+        #            loss_mask = loss_mask * ignore_mask
 
         return AudioTextExample(audio=audio, tokens=tokens, loss_mask=loss_mask, attn_mask=attn_mask)
 
@@ -110,6 +111,7 @@ class ASRMixin(abc.ABC):
         diff = real_tokens - virt_tokens
         loss = hax.dot(diff, diff, axis="embed") ** 0.5
         if reduction != None:
+            loss = loss * example.loss_mask
             loss = loss.mean(axis="position").mean("batch")
         # logits = self(example.audio, example.tokens, example.attn_mask, key=key)
         # logits = logits.astype(jnp.float32)
