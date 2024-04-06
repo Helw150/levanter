@@ -1,6 +1,6 @@
 data:
   id: mozilla-foundation/common_voice_16_1
-  cache_dir: "gs://audio-via/processed/cv-112"
+  cache_dir: "gs://audio-via/processed/cv-448"
   name: "en"
   text_key: "sentence"
   train_split: "train"
@@ -28,7 +28,7 @@ trainer:
   num_train_steps: 2500
   profiler: false
 optimizer:
-  learning_rate: 1E-5
+  learning_rate: 1E-4
   weight_decay: 0.0
   warmup: 0.01
 via_init: True

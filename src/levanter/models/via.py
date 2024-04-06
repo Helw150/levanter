@@ -109,15 +109,15 @@ class ViaConfig(HFCompatConfig, ASRConfig):
 
     @cached_classproperty
     def default_hf_checkpoint_converter(cls) -> HFCheckpointConverter["ViaModel"]:  # type: ignore
-        return HFCheckpointConverter(cls, "WillHeld/via-base")
+        return HFCheckpointConverter(cls, "WillHeld/via-7b-2")
 
 
 def connector_only(model):
     frozen_tree = jax.tree_util.tree_map(lambda _: False, model)
     return eqx.tree_at(
-        lambda tree: (tree.query_tokens, tree.projection.weight, tree.projection.bias),
+        lambda tree: (tree.query_tokens, tree.projection.weight, tree.projection.bias, tree.connector),
         frozen_tree,
-        (True, True, True),
+        (True, True, True, True),
     )
 
 
