@@ -38,14 +38,11 @@ def visualize_log_probs(tokens: List[List[str]], log_probs: np.ndarray, output_p
     html_code = f"<html>{css_preamble}<div class='logprobs' style='font-family: monospace;'>"
     for doc, pdoc, logpdoc in zip(tokens, probs, log_probs):
         for i, token in enumerate(doc):
-            prob = float(pdoc[i])
-            lp = float(logpdoc[i])
+            # prob = float(pdoc[i])
+            lp = float(logpdoc[i]) / 10.0
             normed = cm.plasma(norm(lp))
             color = (255 * np.array(normed)).astype(int)
-            html_code += (
-                f"<span style='background: rgba({color[0]}, {color[1]}, {color[2]}, {min(0.5,1-prob):.2f});' "
-                f" title='{lp:.4f}'>{_escape(token)}</span>"
-            )
+            html_code += f"<span style='background: rgba(255, 0, 0);'  title='{lp:.4f}'>{_escape(token)}</span>"
         html_code += "<br>\n"
     html_code += "</div></html>"
 
@@ -95,6 +92,4 @@ def _concatenate(x):
 
 
 def _decode_tokens_pretty(tok, ids):
-    return [
-        tok.convert_tokens_to_string([x]) if x is not None else tok.unk_token for x in tok.convert_ids_to_tokens(ids)
-    ]
+    return [x if x is not None else tok.unk_token for x in tok.convert_ids_to_tokens(ids)]
