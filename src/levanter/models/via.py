@@ -204,12 +204,14 @@ class ViaModel(eqx.Module, ModelWithHfSerializationMixin[ViaConfig]):
             ),
         )
         virtual_tokens = self.projection(grouped_encoder_outputs)
-        lm_logits = (
-            hax.sum(self.decoder.embeddings.token_embeddings**2, axis="embed").broadcast_axis(self.Pos)
+        lm_logits = -1 * (
+            hax.sum(self.decoder.embeddings.token_embeddings**2, axis="embed").broadcast_axis(
+                hax.axis.eliminate_axes(virtual_tokens.axes, "embed")
+            )
             + hax.sum(virtual_tokens**2, axis="embed")
         ) - (2 * hax.dot("embed", self.decoder.embeddings.token_embeddings, virtual_tokens))
 
-        return lm_logits
+        return lm_logits["position", : input_ids.resolve_axis("position").size]
         # EmbedAxis = grouped_encoder_outputs.resolve_axis("embed")
         # virtual_tokens = self.projection(
         #     hax.pad_left(
