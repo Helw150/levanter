@@ -38,7 +38,7 @@ class AudioTextExample(eqx.Module):
 
         # don't predict the last token.
         if loss_mask is None:
-            loss_mask = 1 - hax.nn.one_hot(0, Pos, dtype=jnp.float32)
+            loss_mask = 1 - hax.nn.one_hot(-1, Pos, dtype=jnp.float32)
 
         if ignore_id is not None:
             # we don't compute loss for any tokens matching the ignore index
