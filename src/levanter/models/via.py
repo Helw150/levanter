@@ -115,9 +115,9 @@ class ViaConfig(HFCompatConfig, ASRConfig):
 def connector_only(model):
     frozen_tree = jax.tree_util.tree_map(lambda _: False, model)
     return eqx.tree_at(
-        lambda tree: (tree.query_tokens, tree.projection.weight, tree.projection.bias, tree.connector),
+        lambda tree: (tree.query_tokens, tree.projection.weight, tree.projection.bias),
         frozen_tree,
-        (True, True, True, True),
+        (True, True, True),
     )
 
 
@@ -204,6 +204,13 @@ class ViaModel(eqx.Module, ModelWithHfSerializationMixin[ViaConfig]):
             ),
         )
         virtual_tokens = self.projection(grouped_encoder_outputs)
+        lm_logits = (
+            hax.sum(self.decoder.embeddings.token_embeddings**2, axis="embed").broadcast_axis("position")
+            + hax.sum(virtual_tokens**2, axis="embed")
+            - (2 * hax.dot("embed", self.decoder.embeddings.token_embeddings, virtual_tokens))
+        )
+
+        return lm_logits
         # EmbedAxis = grouped_encoder_outputs.resolve_axis("embed")
         # virtual_tokens = self.projection(
         #     hax.pad_left(
@@ -219,8 +226,9 @@ class ViaModel(eqx.Module, ModelWithHfSerializationMixin[ViaConfig]):
         #     )
         # )
         # lm_logits = self.decoder.embeddings.unembed(virtual_tokens)
-        return virtual_tokens["position", : input_ids.resolve_axis("position").size]
-        # # Embed Real LLM Tokens
+
+        #        return virtual_tokens["position", : input_ids.resolve_axis("position").size]
+        # Embed Real LLM Tokens
         # prefix = self.decoder.embeddings.embed(self.config.prefix)
         # suffix = self.decoder.embeddings.embed(self.config.suffix)
         # embedded_tokens = self.decoder.embeddings.embed(input_ids)
