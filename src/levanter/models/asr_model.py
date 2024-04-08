@@ -43,7 +43,7 @@ class AudioTextExample(eqx.Module):
         if ignore_id is not None:
             # we don't compute loss for any tokens matching the ignore index
             # loss_mask = tokens != ignore_id
-            ignore_mask = hax.roll(tokens, -1, Pos) != ignore_id
+            ignore_mask = tokens != ignore_id
             loss_mask = loss_mask * ignore_mask
 
         return AudioTextExample(audio=audio, tokens=tokens, loss_mask=loss_mask, attn_mask=attn_mask)
