@@ -4,16 +4,18 @@ from typing import Optional, Sequence, Type, Union
 
 import equinox as eqx
 import jax
+import jax.numpy as jnp
 from jaxtyping import PRNGKeyArray
 
 import haliax as hax
 import haliax.nn as hnn
+from haliax.nn import cross_entropy_loss
 from haliax import Axis, NamedArray
 from haliax.jax_utils import maybe_rng_split
 
 from levanter.compat.hf_checkpoints import HFCheckpointConverter, HFCompatConfig, ModelWithHfSerializationMixin
 from levanter.logging import silence_transformer_nag
-from levanter.models.asr_model import ASRConfig, ASRMixin
+from levanter.models.asr_model import ASRConfig, ASRMixin, AudioTextExample
 from levanter.models.attention import AttentionMask
 from levanter.models.llama import LlamaConfig, LlamaLMHeadModel
 from levanter.models.lm_model import LmHeadModel
@@ -186,7 +188,7 @@ class ViaASRModel(ViaModel, ASRMixin):
         key=None,
         reduction: Optional[hax.ReductionFunction] = hax.mean,
         reduction_axis: Optional[hax.AxisSelection] = None,
-    ) -> jnp.ndarray | NamedArray:
+    ) -> NamedArray:
         logits = self(example.audio, example.tokens, example.attn_mask, key=key)
         logits = logits.astype(jnp.float32)
         targets = example.tokens
