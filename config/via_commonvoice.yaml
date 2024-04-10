@@ -25,11 +25,11 @@ trainer:
   per_device_parallelism: -1
 
   train_batch_size: 512
-  num_train_steps: 20000
+  num_train_steps: 5000
   profiler: false
 optimizer:
   type: sophia-h
-  learning_rate: 1E-3
+  learning_rate: 1E-4
   weight_decay: 0.1
 via_init: True
 hf_save_steps: 500
