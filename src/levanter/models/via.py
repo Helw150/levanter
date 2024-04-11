@@ -197,12 +197,16 @@ class ViaASRModel(ViaModel, ASRMixin):
         real_tokens = self.decoder.embeddings.embed(example.tokens)
         diff = real_tokens - virt_tokens
         loss = hax.dot(diff, diff, axis="embed")
+        loss = hax.where(example.loss_mask, loss, 0)
         if reduction != None:
-            loss = hax.where(example.loss_mask, loss, 0)
-            loss = hax.mean(loss, where=example.loss_mask, axis="position").mean()
+            loss = reduction(loss, where=example.loss_mask, axis=reduction_axis)
         logits = logits.astype(jnp.float32)
         targets = example.tokens
         target_y = hax.nn.one_hot(targets, self.Vocab, dtype=logits.dtype)
+        if reduction == None:
+            return cross_entropy_loss(
+                logits, self.Vocab, target_y, reduction, reduction_axis=reduction_axis, where=example.loss_mask
+            )
         loss = (
             cross_entropy_loss(
                 logits, self.Vocab, target_y, reduction, reduction_axis=reduction_axis, where=example.loss_mask
