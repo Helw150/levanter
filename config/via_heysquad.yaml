@@ -1,6 +1,6 @@
 data:
   id: WillHeld/HeySQuAD_distill
-  cache_dir: "gs://public_data_lev/processed/hs"
+  cache_dir: "gs://audio-via/processed/hs"
   text_key: "response"
   train_split: "train"
   validation_split: "validation"

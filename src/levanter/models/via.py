@@ -198,7 +198,7 @@ class ViaASRModel(ViaModel, ASRMixin):
         diff = real_tokens - virt_tokens
         loss = hax.dot(diff, diff, axis="embed")
         if reduction != None:
-            loss = loss * example.loss_mask
+            loss = hax.where(example.loss_mask, loss, 0)
             loss = hax.mean(loss, where=example.loss_mask, axis="position").mean()
         logits = logits.astype(jnp.float32)
         targets = example.tokens
