@@ -196,7 +196,7 @@ class ViaASRModel(ViaModel, ASRMixin):
         logits, virt_tokens = self(example.audio, example.tokens, example.attn_mask, key=key)
         real_tokens = self.decoder.embeddings.embed(example.tokens)
         diff = real_tokens - virt_tokens
-        loss = hax.dot(diff, diff, axis="embed")
+        loss = hax.dot(diff, diff, axis="embed") / hax.dot(real_tokens, real_tokens, axis="embed")
         loss = hax.where(example.loss_mask, loss, 0)
         if reduction != None:
             loss = reduction(loss, where=example.loss_mask, axis=reduction_axis)
