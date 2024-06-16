@@ -27,7 +27,7 @@ from levanter.compat.torch_serialization import (
 )
 from levanter.logging import silence_transformer_nag
 from levanter.models.asr_model import ASRConfig, ASRMixin
-from levanter.models.attention import AttentionMask, dot_product_attention
+from levanter.models.attention import AttentionBackend, AttentionMask, dot_product_attention
 from levanter.models.lm_model import LmConfig
 from levanter.utils.py_utils import cached_classproperty
 
@@ -63,6 +63,7 @@ class WhisperConfig(HFCompatConfig, ASRConfig):
     # Attention-related config
     upcast_attn: bool = True
     use_flash_attention: bool = False
+    attn_backend: Optional[AttentionBackend] = None
     flash_attention_block_size: Optional[int] = None
 
     @property
@@ -82,8 +83,8 @@ class WhisperConfig(HFCompatConfig, ASRConfig):
     Pos = property(lambda self: Axis(name="position", size=self.max_length))
     KeyPos = property(lambda self: self.Pos.alias("key_position"))
     SourcePos = property(lambda self: Axis(name="position", size=self.max_source_positions))
-    Vocab = property(lambda self: Axis(name="vocab_size", size=self.vocab_size))
-    Embed = property(lambda self: Axis(name="embed_dim", size=self.d_model))
+    Vocab = property(lambda self: Axis(name="vocab", size=self.vocab_size))
+    Embed = property(lambda self: Axis(name="embed", size=self.d_model))
     EncoderMlp = property(lambda self: Axis(name="mlp_dim", size=self.encoder_ffn_dim))
     EncoderHeads = property(lambda self: Axis(name="heads", size=self.encoder_attention_heads))
     EncoderHeadSize = property(lambda self: Axis(name="head_size", size=self.d_model // self.encoder_attention_heads))
@@ -93,6 +94,7 @@ class WhisperConfig(HFCompatConfig, ASRConfig):
     DecoderHeadSize = property(lambda self: Axis(name="head_size", size=self.d_model // self.decoder_attention_heads))
     DecoderLayer = property(lambda self: Axis(name="decoder_layers", size=self.decoder_layers))
     Mels = property(lambda self: Axis(name="n_mels", size=self.num_mel_bins))
+    AudioPos = property(lambda self: [self.Mels, self.MelPos])
 
     def to_hf_config(self, vocab_size, config_overrides=None):
         if config_overrides is None:
@@ -225,8 +227,8 @@ class WhisperAttention(StateDictSerializationMixin, eqx.Module):
             attention_dtype=jnp.float32 if self.config.upcast_attn else None,
         )
 
-        attn_output = attn_output.astype(x.dtype)
         attn_output = self.out_proj(attn_output, key=k_out)
+        attn_output = attn_output.astype(x.dtype)
 
         return attn_output
 
@@ -409,10 +411,6 @@ class WhisperEncoder(eqx.Module, StateDictSerializationMixin):
         x = self.transformer(x, key=k_transformer)
         return x
 
-    def resize_vocab(self, new_size: int, key: Optional[PRNGKeyArray] = None) -> "WhisperDecoder":
-        new_embeddings = self.embeddings.resize_embeddings(new_size, key=key)
-        return dataclasses.replace(self, embeddings=new_embeddings)
-
     def _state_dict_key_map(self) -> Dict[str, Optional[str]]:
         return {"transformer": None}
 
@@ -447,7 +445,7 @@ class WhisperDecoderEmbeddings(eqx.Module):
         return x
 
     def unembed(self, x: NamedArray):
-        return hax.dot("embed_dim", x, self.token_embeddings.weight)
+        return hax.dot(x, self.token_embeddings.weight, axis="embed")
 
     def resize_embeddings(self, new_size: int, key: Optional[PRNGKeyArray] = None):
         new_token_embeddings = self.token_embeddings.resize_embeddings(new_size, key=key)

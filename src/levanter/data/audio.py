@@ -182,7 +182,9 @@ class AudioDatasetSourceConfig:
 
     def doc_iterator(self, split: str) -> Iterator[Tuple[np.ndarray, int, str]]:
         if self.id is not None:
-            data = datasets.load_dataset(self.id, split=split, name=self.name, streaming=self.stream)
+            data = datasets.load_dataset(
+                self.id, split=split, name=self.name, streaming=self.stream, trust_remote_code=True
+            )
             for doc in data:
                 yield (doc[self.audio_key]["array"], doc[self.audio_key]["sampling_rate"], doc[self.text_key])
         else:
@@ -263,6 +265,9 @@ class ProcessedAudioCache(ShardableDataset[AudioTextStorageBatch]):
         self.chunk_cache = chunk_cache.with_batch_size(1)
 
     def __iter__(self):
+        chunk_index = self.chunk_cache.get_resume_shard()
+        row_index = self.chunk_cache.get_resume_row()
+        logger.debug(f"Starting Real Iterator at Shard {chunk_index}, Row {row_index}.")
         for batch in self._chunks():
             unarrow = dict_from_record_batch(batch)
             # Flatten Singleton Batch Dimension
@@ -271,8 +276,11 @@ class ProcessedAudioCache(ShardableDataset[AudioTextStorageBatch]):
             del singleton_dict["audio_shape"]
             yield singleton_dict
 
+    def seek(self):
+        yield from self.chunk_cache.scan_batches_from_chunks()
+
     def _chunks(self):
-        return self.chunk_cache.iter_batches_from_chunks()
+        return self.chunk_cache.iter_batches_from_chunks(should_resume=True)
 
     @staticmethod
     def build_or_load(
@@ -377,7 +385,7 @@ class AudioIODatasetConfig(AudioDatasetSourceConfig, AudioTaskConfig):
 
         if self.id is not None:
             dataset = datasets.load_dataset(
-                self.id, name=self.name, streaming=self.stream, split=self.validation_split
+                self.id, name=self.name, streaming=self.stream, split=self.validation_split, trust_remote_code=True
             )
             try:
                 next(iter(dataset))
@@ -473,3 +481,6 @@ class AudioTextDataset(ShardableDataset[AudioTextExample]):
             for example in self.dataset:
                 converted_example = _convert_example(example)
                 yield converted_example
+
+    def seek(self):
+        yield from self.dataset.seek()

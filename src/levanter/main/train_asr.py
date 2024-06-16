@@ -5,8 +5,8 @@ from dataclasses import dataclass, field
 from typing import Optional, Union
 
 import jax.random as jrandom
+from transformers import PretrainedConfig as HfConfig  # noqa
 
-import haliax as hax
 from haliax import Axis
 from haliax.partitioning import named_jit, round_axis_for_partitioning
 
@@ -15,6 +15,7 @@ from levanter import callbacks
 from levanter.compat.hf_checkpoints import HFCompatConfig, save_hf_checkpoint_callback
 from levanter.data.audio import AudioIODatasetConfig, AudioTextDataset
 from levanter.models.asr_model import ASRConfig
+from levanter.models.via import ViaASRModel, ViaConfig, connector_only
 from levanter.models.whisper import WhisperConfig
 from levanter.optim import AdamConfig, OptimizerConfig
 from levanter.trainer import Trainer, TrainerConfig
@@ -43,6 +44,7 @@ class TrainASRConfig:
     hf_save_path: Optional[str] = None
     hf_upload: Optional[str] = None
     hf_save_steps: int = 10000
+    via_init: bool = False
 
 
 def main(config: TrainASRConfig):
@@ -50,6 +52,7 @@ def main(config: TrainASRConfig):
 
     # this is some unpleasant code to allow us to initialize from a hf checkpoint. If this is your first read through,
     # I recommend skipping it for now
+
     if config.initialize_from_hf:
         if config.trainer.initialize_from is not None:
             raise ValueError("Cannot specify both initialize_from_hf and initialize_from")
@@ -71,7 +74,8 @@ def main(config: TrainASRConfig):
         if config.use_hf_model_config:
             # TODO: log diff of old and new config
             # NB: gross mutability
-            config.model = converter.config_from_hf_config(converter.default_hf_config)
+            if not config.via_init:
+                config.model = converter.config_from_hf_config(converter.default_hf_config)
     elif isinstance(config.model, HFCompatConfig):
         converter = config.model.default_hf_checkpoint_converter
         converter = converter.replaced(tokenizer=tokenizer, feature_extractor=config.data.the_feature_extractor)
@@ -79,6 +83,11 @@ def main(config: TrainASRConfig):
         converter = None
 
     levanter.initialize(config)
+    if config.via_init:
+        c = HfConfig.from_pretrained(config.initialize_from_hf)
+        config.model = ViaConfig.from_hf_config(c)
+        converter = config.model.default_hf_checkpoint_converter
+        converter = converter.replaced(tokenizer=tokenizer, feature_extractor=config.data.the_feature_extractor)
     optimizer = config.optimizer.build(config.trainer.num_train_steps)
 
     # Using the trainer as a context manager does 3 things:
@@ -106,7 +115,7 @@ def main(config: TrainASRConfig):
         train_dataset = AudioTextDataset(
             config.data.train_set(config.batch_size),
             Pos,
-            [config.model.Mels, config.model.MelPos],
+            config.model.AudioPos,
             KeyPos,
             ignore_index=config.data.pad_token_id,
         )
@@ -120,7 +129,24 @@ def main(config: TrainASRConfig):
         if vocab_size != Vocab.size:
             logger.info(f"Rounding vocab size from {vocab_size} to {Vocab.size} for partitioning")
 
-        state = trainer.initial_state(training_key, model_init=lambda: config.model.build_asr(Vocab, key=model_key))
+        if config.initialize_from_hf:
+            logger.info(
+                "No training checkpoint found. Initializing model from HF checkpoint"
+                f" '{converter.reference_checkpoint}'"
+            )
+            model: ViaASRModel = converter.load_pretrained(
+                config.model.asr_model_type,
+                ref="WillHeld/via-llama",
+                axis_mapping=parameter_axis_mapping,
+                dtype=trainer.mp.compute_dtype,
+            )
+            state = trainer.initial_state(
+                training_key,
+                model=model,
+                is_trainable=connector_only(model),
+            )
+        else:
+            logger.info("No checkpoint found. Starting from scratch.")
 
         if int(state.step) == 0:
             # TODO: I don't love that we init the model twice, but it's not a big deal i think?
@@ -147,7 +173,7 @@ def main(config: TrainASRConfig):
             hax_eval_dataset = AudioTextDataset(
                 eval_dataset,
                 Pos,
-                [config.model.Mels, config.model.MelPos],
+                config.model.AudioPos,
                 KeyPos,
                 ignore_index=config.data.pad_token_id,
             )
@@ -174,20 +200,31 @@ def main(config: TrainASRConfig):
             model = trainer.mp.cast_to_compute(model)
             logprobs = model.compute_loss(example, key=None, reduction=None)
             # roll forward to get the loss for each predicted token
-            logprobs = hax.roll(logprobs, 1, Pos)
+            # logprobs = hax.roll(logprobs, 1, Pos)
             return logprobs.rearrange((EvalBatch, Pos)).array
 
+        # trainer.add_hook(
+        #     callbacks.compute_and_visualize_log_probs(
+        #         trainer.replicated_loader(hax_eval_dataset, EvalBatch),
+        #         tokenizer,
+        #         compute_log_probs,
+        #         os.path.join(config.trainer.log_dir, trainer.run_id, "log_probs"),
+        #     ),
+        #     every=config.trainer.steps_per_eval,
+        # )
+
         # data loader. may need to seek to the right place if we're resuming
-        train_loader = iter(trainer.sharded_loader(train_dataset, Batch))
+        train_loader = trainer.sharded_loader(train_dataset, Batch)
 
         if int(state.step) > 0:
             # step is after the batch, so we need to seek to step
             # TODO: implement iter_data.seek(resume_step +1)
             import tqdm
 
+            seeker = train_loader.seek()
             for _ in tqdm.tqdm(range(state.step), desc="seeking data for resume"):
-                next(train_loader)
-
+                next(seeker)
+            train_loader = iter(train_loader)
         ## OK, actually run training!
         trainer.train(state, train_loader)
         # checkpointer.on_step(last_step, force=True)
