@@ -7,14 +7,12 @@ from typing import Optional, Union
 import jax.random as jrandom
 from transformers import PretrainedConfig as HfConfig  # noqa
 
-import haliax as hax
 from haliax import Axis
 from haliax.partitioning import named_jit, round_axis_for_partitioning
 
 import levanter
 from levanter import callbacks
 from levanter.compat.hf_checkpoints import HFCompatConfig, save_hf_checkpoint_callback
-from levanter.data.dataset import ShuffleDataset
 from levanter.data.audio import AudioIODatasetConfig, AudioTextDataset
 from levanter.models.asr_model import ASRConfig
 from levanter.models.via import ViaASRModel, ViaConfig, connector_only
@@ -121,7 +119,6 @@ def main(config: TrainASRConfig):
             KeyPos,
             ignore_index=config.data.pad_token_id,
         )
-        train_dataset = ShuffleDataset(train_dataset, jrandom.PRNGKey(42), 512)
 
         # to do partitioning, our dimensions have to be divisible by the size of the physical axes they're mapped to
         # For most things, we just insist you specify the config right, but tokenizers often have strange numbers of
@@ -129,7 +126,7 @@ def main(config: TrainASRConfig):
 
         vocab_size = len(tokenizer)
         Vocab = round_axis_for_partitioning(Axis("vocab", vocab_size), parameter_axis_mapping)
-        if vocab_size != Vocab.size or True:
+        if vocab_size != Vocab.size:
             logger.info(f"Rounding vocab size from {vocab_size} to {Vocab.size} for partitioning")
 
         if config.initialize_from_hf:
@@ -217,16 +214,17 @@ def main(config: TrainASRConfig):
         # )
 
         # data loader. may need to seek to the right place if we're resuming
-        train_loader = iter(trainer.sharded_loader(train_dataset, Batch))
+        train_loader = trainer.sharded_loader(train_dataset, Batch)
 
         if int(state.step) > 0:
             # step is after the batch, so we need to seek to step
             # TODO: implement iter_data.seek(resume_step +1)
             import tqdm
 
+            seeker = train_loader.seek()
             for _ in tqdm.tqdm(range(state.step), desc="seeking data for resume"):
-                next(train_loader)
-
+                next(seeker)
+            train_loader = iter(train_loader)
         ## OK, actually run training!
         trainer.train(state, train_loader)
         # checkpointer.on_step(last_step, force=True)
